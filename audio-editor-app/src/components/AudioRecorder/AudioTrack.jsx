@@ -1,18 +1,18 @@
+// src/components/AudioRecorder/AudioTrack.jsx
 import React, { useEffect, useRef, useImperativeHandle } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.js";
 
-// Use forwardRef so the parent can call methods (like getTrimRegion)
 const AudioTrack = React.forwardRef(
   ({ blob, playbackRate, volume, isSelected, onClick }, ref) => {
     const containerRef = useRef(null);
     const waveSurferRef = useRef(null);
     const regionsPluginRef = useRef(null);
-    // New ref to store the current region boundaries.
+    // Holds the current region boundaries for trimming.
     const trimRegionRef = useRef(null);
 
     useEffect(() => {
-      // Create a Regions plugin instance with drag/resize enabled.
+      // Create Regions plugin instance with drag/resize enabled.
       regionsPluginRef.current = RegionsPlugin.create({
         drag: true,
         resize: true,
@@ -30,14 +30,12 @@ const AudioTrack = React.forwardRef(
         plugins: [regionsPluginRef.current],
       });
 
-      // When audio is ready, add a default region and update our trimRegionRef.
+      // When the audio is ready, add a default region.
       waveSurferRef.current.on("ready", () => {
         const duration = waveSurferRef.current.getDuration();
-        // Set a default region (if duration allows)
         const regionStart = duration > 2 ? 0.5 : 0;
         const regionEnd = duration > 2 ? 2 : duration;
         if (regionsPluginRef.current) {
-          // Add the region and store a reference to it.
           const region = regionsPluginRef.current.addRegion({
             start: regionStart,
             end: regionEnd,
@@ -48,14 +46,14 @@ const AudioTrack = React.forwardRef(
           // Save the initial region boundaries.
           trimRegionRef.current = { start: region.start, end: region.end };
 
-          // When the user finishes dragging/resizing, update our ref.
+          // Update the boundaries after dragging/resizing.
           region.on("update-end", () => {
             trimRegionRef.current = { start: region.start, end: region.end };
           });
         }
       });
 
-      // Load the blob into WaveSurfer.
+      // Load the audio blob.
       if (blob) {
         waveSurferRef.current.loadBlob(blob);
       }
@@ -65,25 +63,38 @@ const AudioTrack = React.forwardRef(
       };
     }, [blob]);
 
-    // Update playback rate.
+    // Update playbackRate when prop changes.
     useEffect(() => {
       if (waveSurferRef.current) {
         waveSurferRef.current.setPlaybackRate(playbackRate);
       }
     }, [playbackRate]);
 
-    // Update volume.
+    // Update volume when prop changes.
     useEffect(() => {
       if (waveSurferRef.current) {
         waveSurferRef.current.setVolume(volume);
       }
     }, [volume]);
 
-    // Expose a method for the parent to get the current region boundaries.
+    // Expose methods for parent component use.
     useImperativeHandle(ref, () => ({
-      getTrimRegion: () => {
-        return trimRegionRef.current;
+      getTrimRegion: () => trimRegionRef.current,
+      play: () => {
+        if (waveSurferRef.current) waveSurferRef.current.play();
       },
+      pause: () => {
+        if (waveSurferRef.current) waveSurferRef.current.pause();
+      },
+      stop: () => {
+        if (waveSurferRef.current) waveSurferRef.current.stop();
+      },
+      setVolume: (val) => {
+        if (waveSurferRef.current) waveSurferRef.current.setVolume(val);
+      },
+      setPlaybackRate: (val) => {
+        if (waveSurferRef.current) waveSurferRef.current.setPlaybackRate(val);
+      }
     }));
 
     return (
