@@ -1,17 +1,26 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import 'bootstrap/dist/css/bootstrap.min.css'
+// App.jsx
+import { useState } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import AudioRecorder from './components/AudioRecorder/AudioRecorder'
+import AudioRecorder from './components/AudioRecorder/AudioRecorder';
+import FlowEditor from './components/AudioNodes/FlowEditor';
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [mode, setMode] = useState('audio'); // 'audio' or 'flow'
+
+  const toggleMode = () => {
+    setMode(prevMode => (prevMode === 'audio' ? 'flow' : 'audio'));
+  };
 
   return (
-    <>
-      <AudioRecorder/>
-    </>
-  )
+    <div className="bg-dark">
+      {mode === 'audio' ? (
+        <AudioRecorder toggleMode={toggleMode} />
+      ) : (
+        <FlowEditor toggleMode={toggleMode} />
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;

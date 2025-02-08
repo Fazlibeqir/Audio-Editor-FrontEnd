@@ -1,5 +1,5 @@
-// src/components/AudioRecorder/AudioRecorder.jsx
-import React, { useEffect, useRef, useState } from 'react';
+// AudioRecorder.jsx
+import React, { useEffect, useRef, useState } from 'react'; 
 import AudioTrack from './AudioTrack';
 import audioService from '../../service/audioService';
 import TrackControls from './TrackControls';
@@ -7,15 +7,14 @@ import { bufferToBlob } from '../../utils/audioUtils';
 import AudioTrackModel from '../../models/AudioTrackModel';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-const AudioRecorder = () => {
-  // Each track is an instance of AudioTrackModel
+const AudioRecorder = ({ toggleMode }) => {
+  // State and refs for tracks, recording, etc.
   const [tracks, setTracks] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const audioContextRef = useRef(null);
   const fileInputRef = useRef(null);
-  // Global controls for the selected track:
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [downloadUrl, setDownloadUrl] = useState(null);
@@ -27,7 +26,7 @@ const AudioRecorder = () => {
     };
   }, []);
 
-  // Helper to add or update a track.
+  // Helper function to add or update a track.
   const addOrUpdateTrack = (newBlob, type) => {
     setTracks(prevTracks => {
       let updatedTracks = [...prevTracks];
@@ -86,7 +85,7 @@ const AudioRecorder = () => {
         recorder.onstop = () => {
           const newAudioBlob = new Blob(chunks, { type: "audio/webm" });
           addOrUpdateTrack(newAudioBlob, "record");
-          // For example, you could upload here:
+          // Optionally, you can upload here:
           // audioService.uploadTrack({ file: newAudioBlob });
         };
         recorder.start();
@@ -123,19 +122,19 @@ const AudioRecorder = () => {
       const trackToExport =
         tracks.find(t => t.id === selectedTrackId) || tracks[tracks.length - 1];
       try {
-        const response = await audioService.uploadTrack({ file: trackToExport.blob })
+        const response = await audioService.uploadTrack({ file: trackToExport.blob });
         setDownloadUrl(response.data);
         const a = document.createElement("a");
         a.href = response.data;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-      }catch (error){
+      } catch (error) {
         console.error("Error exporting track:", error);
       }
-      
     }
   };
+
   const handleMergeTracks = async () => {
     if (tracks.length > 0) {
       try {
@@ -155,7 +154,6 @@ const AudioRecorder = () => {
     }
   };
 
-  // When trimming, update the selected track in place.
   const handleTrim = async () => {
     if (tracks.length === 0) return;
     if (!selectedTrackId) {
@@ -206,7 +204,6 @@ const AudioRecorder = () => {
     );
   };
 
-  // Fade effects for the selected track.
   const handleFadeIn = async () => {
     if (tracks.length === 0) return;
     if (!selectedTrackId) {
@@ -254,90 +251,106 @@ const AudioRecorder = () => {
 
   return (
     <div className="d-flex flex-column vh-100 bg-black text-white">
-      {/* Top Menu Bar */}
-      <div className="d-flex bg-dark p-2">
-        <div className="dropdown me-3">
-          <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            File
-          </button>
-          <ul className="dropdown-menu">
-            <li>
-              <button className="dropdown-item" onClick={handleImportClick}>
-                Import
-              </button>
-            </li>
-            <li>
-              <button className="dropdown-item" onClick={handleExport}>
-                Export
-              </button>
-            </li>
-            <li>
-          <button className="dropdown-item" onClick={handleMergeTracks}>
-            Merge Tracks
-          </button>
-        </li>
-          </ul>
+      {/* Top Navigation Bar */}
+      <div className="d-flex bg-dark p-2 justify-content-between align-items-center">
+        <div className="d-flex">
+          {/* File Dropdown */}
+          <div className="dropdown me-3">
+            <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              File
+            </button>
+            <ul className="dropdown-menu">
+              <li>
+                <button className="dropdown-item" onClick={handleImportClick}>
+                  Import
+                </button>
+              </li>
+              <li>
+                <button className="dropdown-item" onClick={handleExport}>
+                  Export
+                </button>
+              </li>
+              <li>
+                <button className="dropdown-item" onClick={handleMergeTracks}>
+                  Merge Tracks
+                </button>
+              </li>
+            </ul>
+          </div>
+          {/* Effects Dropdown */}
+          <div className="dropdown me-3">
+            <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              Effects
+            </button>
+            <ul className="dropdown-menu">
+              <li>
+                <button className="dropdown-item" onClick={handleFadeIn}>
+                  Fade In
+                </button>
+              </li>
+              <li>
+                <button className="dropdown-item" onClick={handleFadeOut}>
+                  Fade Out
+                </button>
+              </li>
+            </ul>
+          </div>
+          {/* Edit Dropdown */}
+          <div className="dropdown me-3">
+            <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              Edit
+            </button>
+            <ul className="dropdown-menu">
+              <li>
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+                    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
+                      selectedTrack.ref.current.play();
+                    }
+                  }}
+                >
+                  Play
+                </button>
+              </li>
+              <li>
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+                    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
+                      selectedTrack.ref.current.pause();
+                    }
+                  }}
+                >
+                  Pause
+                </button>
+              </li>
+              <li>
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+                    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
+                      selectedTrack.ref.current.stop();
+                    }
+                  }}
+                >
+                  Stop
+                </button>
+              </li>
+            </ul>
+          </div>
         </div>
-        <div className="dropdown me-3">
-          <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            Effects
-          </button>
-          <ul className="dropdown-menu">
-            <li>
-              <button className="dropdown-item" onClick={handleFadeIn}>
-                FadeIn
-              </button>
-            </li>
-            <li>
-              <button className="dropdown-item" onClick={handleFadeOut}>
-                FadeOut
-              </button>
-            </li>
-          </ul>
-        </div>
-        <div className="dropdown me-3">
-          <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            Edit
-          </button>
-          <ul className="dropdown-menu">
-            <li>
-              <button className="dropdown-item" onClick={() => {
-                const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-                if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
-                  selectedTrack.ref.current.play();
-                }
-              }}>
-                Play
-              </button>
-            </li>
-            <li>
-              <button className="dropdown-item" onClick={() => {
-                const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-                if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
-                  selectedTrack.ref.current.pause();
-                }
-              }}>
-                Pause
-              </button>
-            </li>
-            <li>
-              <button className="dropdown-item" onClick={() => {
-                const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-                if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
-                  selectedTrack.ref.current.stop();
-                }
-              }}>
-                Stop
-              </button>
-            </li>
-          </ul>
-        </div>
-    
-        <div className="d-flex align-items-center ms-auto">
-          <span style={{ marginRight: "10px" }}>Selected Track Controls:</span>
-        </div>
-        <input type="file" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileChange} />
+        {/* Toggle Mode Button */}
+        <button className="btn btn-primary" onClick={toggleMode}>
+          Toggle Mode
+        </button>
       </div>
+
+      {/* Hidden File Input */}
+      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
 
       {/* Track Controls for Selected Track */}
       <div style={{ padding: "10px", backgroundColor: "#333", textAlign: "center" }}>
@@ -354,7 +367,10 @@ const AudioRecorder = () => {
 
       {/* Main Layout */}
       <div className="d-flex flex-grow-1 bg-black">
-        <div className="d-flex flex-column align-items-center justify-content-center p-3 bg-dark vh-100" style={{ width: "80px", gap: "1.5rem" }}>
+        <div
+          className="d-flex flex-column align-items-center justify-content-center p-3 bg-dark vh-100"
+          style={{ width: "80px", gap: "1.5rem" }}
+        >
           <button className="btn btn-secondary" onClick={handleRecord}>
             {isRecording ? "Stop" : "Record"}
           </button>
@@ -365,7 +381,10 @@ const AudioRecorder = () => {
             💾
           </button>
         </div>
-        <div className="flex-grow-1 overflow-auto" style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          className="flex-grow-1 overflow-auto"
+          style={{ display: "flex", flexDirection: "column" }}
+        >
           {tracks.map(track => (
             <AudioTrack
               key={track.id}
