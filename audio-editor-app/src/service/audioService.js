@@ -5,18 +5,13 @@ import axiosInstance from './axiosInstance';
 //Examples
 const audioService = {
   uploadTrack: async (file) => {
-    try {
-
+    
       const response = await axiosInstance.post('/audio/uploadAudio', file, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return response.data;
-    } catch (error) {
-      console.error('Error uploading track:', error);
-      throw error;
-    }
+      return response;
   },
 
   fetchTracks: async () => {

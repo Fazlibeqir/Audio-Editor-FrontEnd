@@ -19,6 +19,7 @@ const AudioRecorder = () => {
   // Global controls for the selected track:
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [downloadUrl, setDownloadUrl] = useState(null);
 
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -118,18 +119,22 @@ const AudioRecorder = () => {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (tracks.length > 0) {
       const trackToExport =
         tracks.find(t => t.id === selectedTrackId) || tracks[tracks.length - 1];
-      audioService.uploadTrack({ file: trackToExport.blob });
-      const url = URL.createObjectURL(trackToExport.blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "recording.webm";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      try {
+        const response = await audioService.uploadTrack({ file: trackToExport.blob })
+        setDownloadUrl(response.data);
+        const a = document.createElement("a");
+        a.href = response.data;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }catch (error){
+        console.error("Error exporting track:", error);
+      }
+      
     }
   };
 
@@ -305,6 +310,7 @@ const AudioRecorder = () => {
             </li>
           </ul>
         </div>
+    
         <div className="d-flex align-items-center ms-auto">
           <span style={{ marginRight: "10px" }}>Selected Track Controls:</span>
         </div>
