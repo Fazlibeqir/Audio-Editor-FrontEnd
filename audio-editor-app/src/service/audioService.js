@@ -4,9 +4,14 @@ import axiosInstance from './axiosInstance';
 //TODO: Write the requset to backend
 //Examples
 const audioService = {
-  uploadTrack: async (trackData) => {
+  uploadTrack: async (file) => {
     try {
-      const response = await axiosInstance.post('/tracks', trackData);
+
+      const response = await axiosInstance.post('/audio/uploadAudio', file, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       return response.data;
     } catch (error) {
       console.error('Error uploading track:', error);

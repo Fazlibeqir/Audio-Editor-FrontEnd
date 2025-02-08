@@ -1,6 +1,7 @@
 // src/components/AudioRecorder/AudioRecorder.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import AudioTrack from './AudioTrack';
+import audioService from '../../service/audioService';
 import TrackControls from './TrackControls';
 import { bufferToBlob } from '../../utils/audioUtils';
 import AudioTrackModel from '../../models/AudioTrackModel';
@@ -121,6 +122,7 @@ const AudioRecorder = () => {
     if (tracks.length > 0) {
       const trackToExport =
         tracks.find(t => t.id === selectedTrackId) || tracks[tracks.length - 1];
+      audioService.uploadTrack({ file: trackToExport.blob });
       const url = URL.createObjectURL(trackToExport.blob);
       const a = document.createElement("a");
       a.href = url;
@@ -323,7 +325,7 @@ const AudioRecorder = () => {
       </div>
 
       {/* Main Layout */}
-      <div className="d-flex flex-grow-1">
+      <div className="d-flex flex-grow-1 bg-black">
         <div className="d-flex flex-column align-items-center justify-content-center p-3 bg-dark vh-100" style={{ width: "80px", gap: "1.5rem" }}>
           <button className="btn btn-secondary" onClick={handleRecord}>
             {isRecording ? "Stop" : "Record"}
