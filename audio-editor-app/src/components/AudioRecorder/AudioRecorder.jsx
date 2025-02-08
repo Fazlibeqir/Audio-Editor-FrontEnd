@@ -5,7 +5,6 @@ import audioService from '../../service/audioService';
 import TrackControls from './TrackControls';
 import { bufferToBlob } from '../../utils/audioUtils';
 import AudioTrackModel from '../../models/AudioTrackModel';
-// import audioService from '../../services/audioService'; // Example: you can use this later
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const AudioRecorder = () => {
@@ -137,6 +136,24 @@ const AudioRecorder = () => {
       
     }
   };
+  const handleMergeTracks = async () => {
+    if (tracks.length > 0) {
+      try {
+        const blobs = tracks.map(track => track.blob);
+        const response = await audioService.mergeTracks(blobs);
+        setDownloadUrl(response.data);
+        const a = document.createElement("a");
+        a.href = response.data;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error("Error merging tracks:", error);
+      }
+    } else {
+      alert("No tracks available to merge.");
+    }
+  };
 
   // When trimming, update the selected track in place.
   const handleTrim = async () => {
@@ -254,6 +271,11 @@ const AudioRecorder = () => {
                 Export
               </button>
             </li>
+            <li>
+          <button className="dropdown-item" onClick={handleMergeTracks}>
+            Merge Tracks
+          </button>
+        </li>
           </ul>
         </div>
         <div className="dropdown me-3">
