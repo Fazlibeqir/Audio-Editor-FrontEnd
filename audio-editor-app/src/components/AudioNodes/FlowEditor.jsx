@@ -16,6 +16,8 @@ import {
   Move,
 } from "lucide-react";
 
+//TODO: Refactorize on more files
+
 import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
 import AudioInputNode from "./AudioInputNode";
 import AudioRecordNode from "./AudioRecordNode";

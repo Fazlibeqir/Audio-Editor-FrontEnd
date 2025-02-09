@@ -10,6 +10,7 @@ const AudioTrack = React.forwardRef(
     const trimRegionRef = useRef(null); // Holds the current region boundaries for trimming.
 
     useEffect(() => {
+      // Create Regions plugin instance with drag/resize enabled.
       regionsPluginRef.current = RegionsPlugin.create({
         drag: true,
         resize: true,

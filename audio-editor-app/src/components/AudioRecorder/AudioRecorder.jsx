@@ -1,22 +1,24 @@
-// AudioRecorder.jsx
-import React, { useEffect, useRef, useState } from 'react'; 
+import React, { useEffect, useRef, useState } from 'react';
 import AudioTrack from './AudioTrack';
-import audioService from '../../service/audioService';
 import TrackControls from './TrackControls';
-import { bufferToBlob } from '../../utils/audioUtils';
+import TopNavigation from './TopNavigation';
+import FileInput from './FileInput';
+import audioService from '../../service/audioService';
 import AudioTrackModel from '../../models/AudioTrackModel';
+import { trimAudio, applyFadeIn, applyFadeOut } from '../../utils/audioEffects';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+//TODO: Refactorize on more files components
+
 const AudioRecorder = ({ toggleMode }) => {
-  // State and refs for tracks, recording, etc.
   const [tracks, setTracks] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
-  const audioContextRef = useRef(null);
-  const fileInputRef = useRef(null);
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const audioContextRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -25,17 +27,16 @@ const AudioRecorder = ({ toggleMode }) => {
     };
   }, []);
 
-  // Helper function to add or update a track.
+  // Add or update a track based on its type.
   const addOrUpdateTrack = (newBlob, type) => {
     setTracks(prevTracks => {
       let updatedTracks = [...prevTracks];
       if (type === 'record') {
-        // Only one recording track is allowed.
         const existingIndex = updatedTracks.findIndex(t => t.type === 'record');
         if (existingIndex !== -1) {
-          updatedTracks[existingIndex] = new AudioTrackModel({ 
+          updatedTracks[existingIndex] = new AudioTrackModel({
             ...updatedTracks[existingIndex],
-            blob: newBlob 
+            blob: newBlob
           });
           return updatedTracks;
         } else {
@@ -49,7 +50,6 @@ const AudioRecorder = ({ toggleMode }) => {
           }
         }
       } else if (type === 'import') {
-        // Maximum of two import tracks.
         const importCount = updatedTracks.filter(t => t.type === 'import').length;
         if (importCount >= 2) {
           alert("Maximum import tracks reached (2 imports).");
@@ -70,6 +70,7 @@ const AudioRecorder = ({ toggleMode }) => {
     });
   };
 
+  // Recording logic.
   const handleRecord = async () => {
     if (!isRecording) {
       await audioContextRef.current.resume();
@@ -84,7 +85,7 @@ const AudioRecorder = ({ toggleMode }) => {
         recorder.onstop = () => {
           const newAudioBlob = new Blob(chunks, { type: "audio/webm" });
           addOrUpdateTrack(newAudioBlob, "record");
-          // Optionally, you can upload here:
+          // Optionally, you could upload here:
           // audioService.uploadTrack({ file: newAudioBlob });
         };
         recorder.start();
@@ -100,6 +101,7 @@ const AudioRecorder = ({ toggleMode }) => {
     }
   };
 
+  // Import logic.
   const handleImportClick = () => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
@@ -116,6 +118,7 @@ const AudioRecorder = ({ toggleMode }) => {
     }
   };
 
+  // Export logic.
   const handleExport = async () => {
     if (tracks.length > 0) {
       const trackToExport =
@@ -133,6 +136,7 @@ const AudioRecorder = ({ toggleMode }) => {
     }
   };
 
+  // Merge logic.
   const handleMergeTracks = async () => {
     if (tracks.length > 0) {
       try {
@@ -151,6 +155,7 @@ const AudioRecorder = ({ toggleMode }) => {
     }
   };
 
+  // Trim logic using the extracted utility.
   const handleTrim = async () => {
     if (tracks.length === 0) return;
     if (!selectedTrackId) {
@@ -167,40 +172,19 @@ const AudioRecorder = ({ toggleMode }) => {
       alert("No trim region set.");
       return;
     }
-    const { start, end } = region;
-    const arrayBuffer = await selectedTrack.blob.arrayBuffer();
-    const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-    const sampleRate = audioBuffer.sampleRate;
-    const startSample = Math.floor(start * sampleRate);
-    const endSample = Math.floor(end * sampleRate);
-    const trimmedBuffer = audioContextRef.current.createBuffer(
-      audioBuffer.numberOfChannels,
-      endSample - startSample,
-      sampleRate
-    );
-    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-      const oldData = audioBuffer.getChannelData(channel);
-      const newData = trimmedBuffer.getChannelData(channel);
-      newData.set(oldData.slice(startSample, endSample));
+    try {
+      const trimmedBlob = await trimAudio(selectedTrack.blob, region, audioContextRef.current);
+      setTracks(prevTracks =>
+        prevTracks.map(t =>
+          t.id === selectedTrack.id ? new AudioTrackModel({ ...t, blob: trimmedBlob }) : t
+        )
+      );
+    } catch (error) {
+      console.error("Error trimming track:", error);
     }
-    const offlineContext = new OfflineAudioContext(
-      trimmedBuffer.numberOfChannels,
-      trimmedBuffer.length,
-      sampleRate
-    );
-    const source = offlineContext.createBufferSource();
-    source.buffer = trimmedBuffer;
-    source.connect(offlineContext.destination);
-    source.start();
-    const renderedBuffer = await offlineContext.startRendering();
-    const trimmedBlob = await bufferToBlob(renderedBuffer);
-    setTracks(prevTracks =>
-      prevTracks.map(t =>
-        t.id === selectedTrack.id ? new AudioTrackModel({ ...t, blob: trimmedBlob }) : t
-      )
-    );
   };
 
+  // Fade in/out logic using the extracted utilities.
   const handleFadeIn = async () => {
     if (tracks.length === 0) return;
     if (!selectedTrackId) {
@@ -208,19 +192,12 @@ const AudioRecorder = ({ toggleMode }) => {
       return;
     }
     const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-    const arrayBuffer = await selectedTrack.blob.arrayBuffer();
-    const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-    const fadeDuration = 1; // seconds
-    const sampleRate = audioBuffer.sampleRate;
-    const fadeSamples = Math.floor(fadeDuration * sampleRate);
-    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-      const channelData = audioBuffer.getChannelData(channel);
-      for (let i = 0; i < fadeSamples && i < channelData.length; i++) {
-        channelData[i] *= i / fadeSamples;
-      }
+    try {
+      const fadedBlob = await applyFadeIn(selectedTrack.blob, audioContextRef.current, 1);
+      addOrUpdateTrack(fadedBlob, selectedTrack.type);
+    } catch (error) {
+      console.error("Error applying fade in:", error);
     }
-    const fadedBlob = await bufferToBlob(audioBuffer);
-    addOrUpdateTrack(fadedBlob, selectedTrack.type);
   };
 
   const handleFadeOut = async () => {
@@ -230,126 +207,52 @@ const AudioRecorder = ({ toggleMode }) => {
       return;
     }
     const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-    const arrayBuffer = await selectedTrack.blob.arrayBuffer();
-    const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-    const fadeDuration = 1; // seconds
-    const sampleRate = audioBuffer.sampleRate;
-    const fadeSamples = Math.floor(fadeDuration * sampleRate);
-    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-      const channelData = audioBuffer.getChannelData(channel);
-      for (let i = 0; i < fadeSamples && i < channelData.length; i++) {
-        const index = channelData.length - i - 1;
-        channelData[index] *= i / fadeSamples;
-      }
+    try {
+      const fadedBlob = await applyFadeOut(selectedTrack.blob, audioContextRef.current, 1);
+      addOrUpdateTrack(fadedBlob, selectedTrack.type);
+    } catch (error) {
+      console.error("Error applying fade out:", error);
     }
-    const fadedBlob = await bufferToBlob(audioBuffer);
-    addOrUpdateTrack(fadedBlob, selectedTrack.type);
+  };
+
+  // Edit controls for play, pause, and stop.
+  const handlePlay = () => {
+    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
+      selectedTrack.ref.current.play();
+    }
+  };
+
+  const handlePause = () => {
+    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
+      selectedTrack.ref.current.pause();
+    }
+  };
+
+  const handleStop = () => {
+    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
+      selectedTrack.ref.current.stop();
+    }
   };
 
   return (
     <div className="d-flex flex-column vh-100 bg-black text-white">
-      {/* Top Navigation Bar */}
-      <div className="d-flex bg-dark p-2 justify-content-between align-items-center">
-        <div className="d-flex">
-          {/* File Dropdown */}
-          <div className="dropdown me-3">
-            <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-              File
-            </button>
-            <ul className="dropdown-menu">
-              <li>
-                <button className="dropdown-item" onClick={handleImportClick}>
-                  Import
-                </button>
-              </li>
-              <li>
-                <button className="dropdown-item" onClick={handleExport}>
-                  Export
-                </button>
-              </li>
-              <li>
-                <button className="dropdown-item" onClick={handleMergeTracks}>
-                  Merge Tracks
-                </button>
-              </li>
-            </ul>
-          </div>
-          {/* Effects Dropdown */}
-          <div className="dropdown me-3">
-            <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-              Effects
-            </button>
-            <ul className="dropdown-menu">
-              <li>
-                <button className="dropdown-item" onClick={handleFadeIn}>
-                  Fade In
-                </button>
-              </li>
-              <li>
-                <button className="dropdown-item" onClick={handleFadeOut}>
-                  Fade Out
-                </button>
-              </li>
-            </ul>
-          </div>
-          {/* Edit Dropdown */}
-          <div className="dropdown me-3">
-            <button className="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-              Edit
-            </button>
-            <ul className="dropdown-menu">
-              <li>
-                <button
-                  className="dropdown-item"
-                  onClick={() => {
-                    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-                    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
-                      selectedTrack.ref.current.play();
-                    }
-                  }}
-                >
-                  Play
-                </button>
-              </li>
-              <li>
-                <button
-                  className="dropdown-item"
-                  onClick={() => {
-                    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-                    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
-                      selectedTrack.ref.current.pause();
-                    }
-                  }}
-                >
-                  Pause
-                </button>
-              </li>
-              <li>
-                <button
-                  className="dropdown-item"
-                  onClick={() => {
-                    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-                    if (selectedTrack && selectedTrack.ref && selectedTrack.ref.current) {
-                      selectedTrack.ref.current.stop();
-                    }
-                  }}
-                >
-                  Stop
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-        {/* Toggle Mode Button */}
-        <button className="btn btn-primary" onClick={toggleMode}>
-          Toggle Mode
-        </button>
-      </div>
+      <TopNavigation
+        toggleMode={toggleMode}
+        handleImportClick={handleImportClick}
+        handleExport={handleExport}
+        handleMergeTracks={handleMergeTracks}
+        handleFadeIn={handleFadeIn}
+        handleFadeOut={handleFadeOut}
+        handlePlay={handlePlay}
+        handlePause={handlePause}
+        handleStop={handleStop}
+      />
 
-      {/* Hidden File Input */}
-      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
+      <FileInput ref={fileInputRef} onChange={handleFileChange} />
 
-      {/* Track Controls for Selected Track */}
       <div style={{ padding: "10px", backgroundColor: "#333", textAlign: "center" }}>
         {selectedTrackId && (
           <TrackControls
@@ -362,7 +265,6 @@ const AudioRecorder = ({ toggleMode }) => {
         )}
       </div>
 
-      {/* Main Layout */}
       <div className="d-flex flex-grow-1 bg-black">
         <div
           className="d-flex flex-column align-items-center justify-content-center p-3 bg-dark vh-100"
@@ -378,10 +280,7 @@ const AudioRecorder = ({ toggleMode }) => {
             💾
           </button>
         </div>
-        <div
-          className="flex-grow-1 overflow-auto"
-          style={{ display: "flex", flexDirection: "column" }}
-        >
+        <div className="flex-grow-1 overflow-auto" style={{ display: "flex", flexDirection: "column" }}>
           {tracks.map(track => (
             <AudioTrack
               key={track.id}
