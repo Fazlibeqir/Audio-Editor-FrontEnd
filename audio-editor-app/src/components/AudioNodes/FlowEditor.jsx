@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useRef } from "react";
-import {
-  ReactFlow,
+import  { ReactFlow,
   addEdge,
   MiniMap,
   Controls,
@@ -9,116 +8,292 @@ import {
   applyEdgeChanges,
   Handle,
 } from "@xyflow/react";
-import { Plus, Download, ZoomIn, ZoomOut, Expand, Move } from "lucide-react"; // Icons
+import { Plus, Download, ZoomIn, ZoomOut, Expand, Move, Trash2 } from "lucide-react";
 import "@xyflow/react/dist/style.css";
 
-// Custom node with editable text
-const CustomNode = ({ id, data, isConnectable }) => {
-  const [label, setLabel] = useState(data.label);
+/** Custom Node Components for Audio Editing **/
 
-  const handleChange = (e) => {
-    setLabel(e.target.value);
-  };
+// Audio Input Node: Allows user to specify an input file or URL.
+const AudioInputNode = ({ id, data, isConnectable }) => {
+  return (
+    <div
+      style={{
+        padding: 10,
+        border: "2px solid #1E90FF",
+        borderRadius: 5,
+        background: "#E6F7FF",
+        width: "150px",
+      }}
+    >
+      {/* This node only has an output handle */}
+      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      <div style={{ fontWeight: "bold", color: "#1E90FF", marginBottom: 5 }}>
+        Audio Input
+      </div>
+      <input
+        type="file"
+        accept="audio/*"
+        onChange={(e) => data.onFileChange(e.target.files[0])}
+        style={{ width: "100%", fontSize: "12px" }}
+      />
+    </div>
+  );
+};
+
+// Audio Trim Node: Lets user set start time and duration.
+const AudioTrimNode = ({ id, data, isConnectable }) => {
+  return (
+    <div
+      style={{
+        padding: 10,
+        border: "2px solid #FFA500",
+        borderRadius: 5,
+        background: "#FFF7E6",
+        width: "150px",
+      }}
+    >
+      {/* Has both an input and an output handle */}
+      <Handle type="target" position="top" isConnectable={isConnectable} />
+      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      <div style={{ fontWeight: "bold", color: "#FFA500", marginBottom: 5 }}>
+        Trim Audio
+      </div>
+      <div style={{ fontSize: "12px" }}>
+        <label>Start:</label>
+        <input
+          type="text"
+          value={data.start || ""}
+          onChange={(e) => data.onChangeStart(e.target.value)}
+          placeholder="00:00:00"
+          style={{ width: "70px", marginLeft: 3 }}
+        />
+      </div>
+      <div style={{ fontSize: "12px", marginTop: 5 }}>
+        <label>Duration:</label>
+        <input
+          type="text"
+          value={data.duration || ""}
+          onChange={(e) => data.onChangeDuration(e.target.value)}
+          placeholder="secs"
+          style={{ width: "70px", marginLeft: 3 }}
+        />
+      </div>
+    </div>
+  );
+};
+/** Merge Node - Combines Two Inputs **/
+const AudioMergeNode = ({ id, data, isConnectable }) => {
+  return (
+    <div
+      style={{
+        padding: 10,
+        border: "2px solidrgb(207, 12, 165)",
+        borderRadius: 5,
+        background: "#E6FFE6",
+        width: "150px",
+      }}
+    >
+      <Handle type="target" position="top" isConnectable={isConnectable} id="a" />
+      <Handle type="target" position="top" isConnectable={isConnectable} id="b" />
+      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      <div className="node-title">Merge Audio</div>
+      <p style={{ fontSize: "12px", color: "#555" }}>Combines two audio files</p>
+    </div>
+  );
+};
+
+// Audio Effect Node: Provides a simple dropdown to choose an effect.
+const AudioEffectNode = ({ id, data, isConnectable }) => {
+  return (
+    <div
+      style={{
+        padding: 10,
+        border: "2px solid #32CD32",
+        borderRadius: 5,
+        background: "#E6FFE6",
+        width: "150px",
+      }}
+    >
+      <Handle type="target" position="top" isConnectable={isConnectable} />
+      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      <div style={{ fontWeight: "bold", color: "#32CD32", marginBottom: 5 }}>
+        Audio Effect
+      </div>
+      <div style={{ fontSize: "12px" }}>
+        <label>Effect:</label>
+        <select
+          value={data.effect || "none"}
+          onChange={(e) => data.onChangeEffect(e.target.value)}
+          style={{ fontSize: "12px", marginLeft: 3 }}
+        >
+          <option value="none">None</option>
+          <option value="reverb">Reverb</option>
+          <option value="echo">Echo</option>
+          <option value="chorus">Chorus</option>
+        </select>
+      </div>
+    </div>
+  );
+};
+
+// Audio Output Node: Lets user specify an output file.
+const AudioOutputNode = ({ id, data, isConnectable }) => {
+  const audioUrl = data.file ? URL.createObjectURL(data.file) : null;
 
   return (
     <div
       style={{
         padding: 10,
-        border: "1px solid black",
+        border: "2px solid #DC143C",
         borderRadius: 5,
-        background: "#f8f8f8",
+        background: "#FFE6E6",
+        width: "150px",
       }}
     >
       <Handle type="target" position="top" isConnectable={isConnectable} />
+      <div style={{ fontWeight: "bold", color: "#DC143C", marginBottom: 5 }}>
+        Audio Output
+      </div>
       <input
         type="text"
-        value={label}
-        onChange={handleChange}
-        style={{
-          width: "100px",
-          textAlign: "center",
-          border: "none",
-          background: "transparent",
-          fontSize: "14px",
-          color: "black",
-        }}
+        value={data.label || ""}
+        onChange={(e) => data.onChange(e.target.value)}
+        placeholder="Output file"
+        style={{ width: "100%", fontSize: "12px" }}
       />
-      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      {audioUrl && (
+        <>
+          <audio controls src={audioUrl} style={{ width: "100%", marginTop: "10px" }} />
+          <button onClick={() => new Audio(audioUrl).play()} className="btn btn-secondary mt-2">
+            Preview
+          </button>
+          <a href={audioUrl} download={data.label || "output.mp3"} className="btn btn-primary mt-2">
+            Download
+          </a>
+        </>
+      )}
     </div>
   );
 };
 
-const initialNodes = [
-  { id: "1", type: "custom", data: { label: "New Node" }, position: { x: 100, y: 50 } },
-];
-const initialEdges = [];
+/** Main Audio Flow Editor Component **/
 
-export default function FlowEditor({ toggleMode }) {
-  const [nodes, setNodes] = useState(initialNodes);
-  const [edges, setEdges] = useState(initialEdges);
-  const nodeIdCounter = useRef(2); // Persistent counter without re-renders
-  const [reactFlowInstance, setReactFlowInstance] = useState(null); // For zoom & fit view
-  const [isInteractive, setIsInteractive] = useState(true); // Interactive mode toggle
+export default function AudioFlowEditor({ toggleMode }) {
+  // We start with an empty array for nodes and edges.
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+  const nodeIdCounter = useRef(1);
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [isInteractive, setIsInteractive] = useState(true);
   const [minimapViewport, setMinimapViewport] = useState({ x: 0, y: 0, zoom: 1 });
 
-  // Handle node position changes
+  // Handlers for node and edge updates.
   const onNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
     []
   );
-
-  // Handle edge (connection) changes
   const onEdgesChange = useCallback(
     (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     []
   );
-
-  // More responsive connections
   const onConnect = useCallback(
     (connection) => setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
     []
   );
+  const onEdgeContextMenu = (event, edge) => {
+    event.preventDefault();
+    setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+  };
 
-  // Function to add a new node dynamically
-  const addNode = () => {
-    const firstNode = nodes[0];
-    const lastNode = nodes[nodes.length - 1];
-    const offset = 20;
+  // Helper to update a node’s data.
+  const updateNodeData = (id, newData) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, ...newData } } : node
+      )
+    );
+  };
 
+  // Function to add a new node of a specified type.
+  const addNode = (type) => {
+    const id = String(nodeIdCounter.current++);
     const newNode = {
-      id: String(nodeIdCounter.current++),
-      type: "custom",
-      data: { label: "New Node" },
-      position: {
-        x: firstNode ? firstNode.position.x : 100,
-        y: lastNode ? lastNode.position.y + offset : firstNode.position.y + offset,
-      },
+      id,
+      type, // Must match one of the keys in our nodeTypes map
+      position: { x: Math.random() * 300 + 50, y: Math.random() * 300 + 50 },
+      data: {},
     };
+
+    // Initialize default data and change handlers per node type.
+    if (type === "audioInput") {
+      newNode.data = {
+        label: "Input File",
+        onFileChange: (file) => updateNodeData(id, { file }),
+      };
+    } else if (type === "audioTrim") {
+      newNode.data = {
+        start: "00:00:00",
+        duration: "10",
+        onChangeStart: (value) => updateNodeData(id, { start: value }),
+        onChangeDuration: (value) => updateNodeData(id, { duration: value }),
+      };
+    } else if (type === "audioEffect") {
+      newNode.data = {
+        effect: "none",
+        onChangeEffect: (value) => updateNodeData(id, { effect: value }),
+      };
+    } else if (type === "audioOutput") {
+      newNode.data = {
+        label: "Output File",
+        onChange: (value) => updateNodeData(id, { label: value }),
+        file: null,
+      };
+    }
+
     setNodes((nds) => [...nds, newNode]);
   };
 
-  // Function to export the current workflow as JSON
-  const exportWorkflow = () => {
-    const workflowData = { nodes, edges };
-    console.log("Exported Workflow:", JSON.stringify(workflowData, null, 2));
-    alert("Check console for exported JSON");
-  };
+  // Handle recording audio
+  const handleRecord = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+    const chunks = [];
 
-  // Zoom & Fit Controls
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const newAudioBlob = new Blob(chunks, { type: "audio/webm" });
+      const id = String(nodeIdCounter.current++);
+      const newNode = {
+        id,
+        type: "audioInput",
+        position: { x: Math.random() * 300 + 50, y: Math.random() * 300 + 50 },
+        data: { file: newAudioBlob },
+      };
+      setNodes((nds) => [...nds, newNode]);
+    };
+
+    mediaRecorder.start();
+    setTimeout(() => mediaRecorder.stop(), 5000); // Record for 5 seconds
+  };
+  
+
+  // Zoom and fit view controls
   const zoomIn = () => reactFlowInstance?.zoomIn();
   const zoomOut = () => reactFlowInstance?.zoomOut();
   const fitView = () => reactFlowInstance?.fitView();
-
-  // Toggle Interactive Mode
   const toggleInteractive = () => setIsInteractive(true);
 
-  const onMove = useCallback((event, viewport) => {
-    setMinimapViewport({
-      x: viewport.x,
-      y: viewport.y,
-      zoom: viewport.zoom, // Keep track of zoom level as well
-    });
-  }, []);
+  // Map node types to our custom node components.
+  const nodeTypes = {
+    audioInput: AudioInputNode,
+    audioTrim: AudioTrimNode,
+    audioMerge: AudioMergeNode,
+    audioEffect: AudioEffectNode,
+    audioOutput: AudioOutputNode,
+  };
 
   return (
     <div
@@ -129,12 +304,14 @@ export default function FlowEditor({ toggleMode }) {
         flexDirection: "column",
       }}
     >
-      {/* Header with Toggle Mode Button */}
+      {/* Header */}
       <div
         className="d-flex bg-dark p-2 justify-content-between align-items-center"
         style={{ height: "50px", flexShrink: 0 }}
       >
-        <div style={{ color: "white", fontSize: "18px" }}>Flow Editor</div>
+        <div style={{ color: "white", fontSize: "18px" }}>
+          Audio Editing Flow Editor
+        </div>
         <button className="btn btn-primary" onClick={toggleMode}>
           Toggle Mode
         </button>
@@ -146,15 +323,15 @@ export default function FlowEditor({ toggleMode }) {
           style={{ width: "100%", height: "100%" }}
           nodes={nodes}
           edges={edges}
-          nodeTypes={{ custom: CustomNode }}
+          nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onMove={onMove}
-          onInit={setReactFlowInstance} // Store flow instance
+          onEdgeContextMenu={onEdgeContextMenu}
+          onInit={setReactFlowInstance}
           fitView
-          nodesDraggable={isInteractive} // Toggle draggable mode
-          elementsSelectable={isInteractive} // Toggle selection mode
+          nodesDraggable={isInteractive}
+          elementsSelectable={isInteractive}
         >
           <Controls />
           <MiniMap
@@ -163,12 +340,12 @@ export default function FlowEditor({ toggleMode }) {
               top: "350px",
               right: "10px",
             }}
-            viewportPosition={minimapViewport} // Pass the viewport position
+            viewportPosition={minimapViewport}
           />
           <Background variant="dots" gap={12} size={1} />
         </ReactFlow>
 
-        {/* Center-Left Controls */}
+        {/* Left-Side Controls */}
         <div style={controlsContainerStyle}>
           <button className="react-flow__controls-button" onClick={zoomIn}>
             <ZoomIn size={16} />
@@ -179,31 +356,40 @@ export default function FlowEditor({ toggleMode }) {
           <button className="react-flow__controls-button" onClick={fitView}>
             <Expand size={16} />
           </button>
-          <button className={`react-flow__controls-button`} onClick={toggleInteractive}>
+          <button className="react-flow__controls-button" onClick={toggleInteractive}>
             <Move size={16} />
           </button>
         </div>
 
-        {/* Bottom Center UI */}
+        {/* Bottom Center Controls: Buttons to add nodes and export workflow */}
         <div style={buttonContainerStyle}>
-          <button onClick={addNode} style={customButtonStyle}>
-            <Plus size={18} /> Add Node
+          <button onClick={() => addNode("audioInput")} style={customButtonStyle}>
+            <Plus size={18} /> Add Input
           </button>
-          <button onClick={exportWorkflow} style={customButtonStyle}>
+          <button onClick={() => addNode("audioTrim")} style={customButtonStyle}>
+            <Plus size={18} /> Add Trim
+          </button>
+          <button onClick={() => addNode("audioEffect")} style={customButtonStyle}>
+            <Plus size={18} /> Add Effect
+          </button>
+          <button onClick={() => addNode("audioOutput")} style={customButtonStyle}>
+            <Plus size={18} /> Add Output
+          </button>
+          {/* <button onClick={exportWorkflow} style={customButtonStyle}>
             <Download size={18} /> Export
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
   );
 }
 
-// Styles for controls and buttons
+/** Styles for controls and buttons **/
 const controlsContainerStyle = {
   position: "absolute",
-  left: 15, // Stay on the left side
-  top: "50%", // Center vertically
-  transform: "translateY(-50%)", // Ensure perfect centering
+  left: 15,
+  top: "50%",
+  transform: "translateY(-50%)",
   display: "flex",
   flexDirection: "column",
   gap: "5px",
