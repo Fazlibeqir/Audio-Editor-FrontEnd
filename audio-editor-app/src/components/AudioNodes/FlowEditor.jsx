@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useRef } from "react";
-import  { ReactFlow,
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import {
+  ReactFlow,
   addEdge,
   MiniMap,
   Controls,
@@ -7,13 +8,21 @@ import  { ReactFlow,
   applyNodeChanges,
   applyEdgeChanges,
   Handle,
-} from "@xyflow/react";
-import { Plus, Download, ZoomIn, ZoomOut, Expand, Move, Trash2 } from "lucide-react";
+} from "@xyflow/react"; // or "reactflow" if using that package
+import {
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  Expand,
+  Move,
+} from "lucide-react";
 import "@xyflow/react/dist/style.css";
 
-/** Custom Node Components for Audio Editing **/
+import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
 
-// Audio Input Node: Allows user to specify an input file or URL.
+/** Custom Node Components **/
+
+// Audio Input Node – Allows the user to upload an audio file.
 const AudioInputNode = ({ id, data, isConnectable }) => {
   return (
     <div
@@ -25,22 +34,119 @@ const AudioInputNode = ({ id, data, isConnectable }) => {
         width: "150px",
       }}
     >
-      {/* This node only has an output handle */}
+      {/* Only an output handle */}
       <Handle type="source" position="bottom" isConnectable={isConnectable} />
-      <div style={{ fontWeight: "bold", color: "#1E90FF", marginBottom: 5 }}>
+      <div
+        style={{
+          fontWeight: "bold",
+          color: "#1E90FF",
+          marginBottom: 5,
+          textAlign: "center",
+        }}
+      >
         Audio Input
       </div>
       <input
         type="file"
         accept="audio/*"
-        onChange={(e) => data.onFileChange(e.target.files[0])}
+        onChange={(e) =>
+          data.onFileChange && data.onFileChange(e.target.files[0])
+        }
         style={{ width: "100%", fontSize: "12px" }}
       />
     </div>
   );
 };
 
-// Audio Trim Node: Lets user set start time and duration.
+// Audio Record Node – Allows the user to record voice (5 seconds) via the microphone.
+const AudioRecordNode = ({ id, data, isConnectable }) => {
+  const [recording, setRecording] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleRecord = async () => {
+    setRecording(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        data.onRecord && data.onRecord(blob);
+        setRecording(false);
+      };
+      mediaRecorder.start();
+      setTimeout(() => {
+        mediaRecorder.stop();
+      }, 5000); // record for 5 seconds
+    } catch (err) {
+      setError("Recording failed");
+      setRecording(false);
+    }
+  };
+
+  const audioUrl = data.file ? URL.createObjectURL(data.file) : null;
+
+  return (
+    <div
+      style={{
+        padding: 10,
+        border: "2px solid #8A2BE2",
+        borderRadius: 5,
+        background: "#E6E6FA",
+        width: "150px",
+      }}
+    >
+      <Handle type="target" position="top" isConnectable={isConnectable} />
+      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      <div
+        style={{
+          fontWeight: "bold",
+          color: "#8A2BE2",
+          marginBottom: 5,
+          textAlign: "center",
+        }}
+      >
+        Record Audio
+      </div>
+      <button
+        onClick={handleRecord}
+        disabled={recording}
+        style={{ width: "100%", fontSize: "12px" }}
+      >
+        {recording ? "Recording..." : "Record 5 sec"}
+      </button>
+      {error && (
+        <div style={{ color: "red", fontSize: "10px", textAlign: "center" }}>
+          {error}
+        </div>
+      )}
+      {audioUrl && (
+        <>
+          <audio controls src={audioUrl} style={{ width: "100%", marginTop: "10px" }} />
+          <a
+            href={audioUrl}
+            download="recording.webm"
+            style={{
+              marginTop: "10px",
+              display: "block",
+              textAlign: "center",
+              fontSize: "12px",
+            }}
+          >
+            Download
+          </a>
+        </>
+      )}
+    </div>
+  );
+};
+
+// Audio Trim Node – Allows the user to set the start time and duration for trimming.
 const AudioTrimNode = ({ id, data, isConnectable }) => {
   return (
     <div
@@ -52,28 +158,38 @@ const AudioTrimNode = ({ id, data, isConnectable }) => {
         width: "150px",
       }}
     >
-      {/* Has both an input and an output handle */}
       <Handle type="target" position="top" isConnectable={isConnectable} />
       <Handle type="source" position="bottom" isConnectable={isConnectable} />
-      <div style={{ fontWeight: "bold", color: "#FFA500", marginBottom: 5 }}>
+      <div
+        style={{
+          fontWeight: "bold",
+          color: "#FFA500",
+          marginBottom: 5,
+          textAlign: "center",
+        }}
+      >
         Trim Audio
       </div>
-      <div style={{ fontSize: "12px" }}>
+      <div style={{ fontSize: "12px", marginBottom: "5px" }}>
         <label>Start:</label>
         <input
           type="text"
           value={data.start || ""}
-          onChange={(e) => data.onChangeStart(e.target.value)}
+          onChange={(e) =>
+            data.onChangeStart && data.onChangeStart(e.target.value)
+          }
           placeholder="00:00:00"
           style={{ width: "70px", marginLeft: 3 }}
         />
       </div>
-      <div style={{ fontSize: "12px", marginTop: 5 }}>
+      <div style={{ fontSize: "12px" }}>
         <label>Duration:</label>
         <input
           type="text"
           value={data.duration || ""}
-          onChange={(e) => data.onChangeDuration(e.target.value)}
+          onChange={(e) =>
+            data.onChangeDuration && data.onChangeDuration(e.target.value)
+          }
           placeholder="secs"
           style={{ width: "70px", marginLeft: 3 }}
         />
@@ -81,28 +197,8 @@ const AudioTrimNode = ({ id, data, isConnectable }) => {
     </div>
   );
 };
-/** Merge Node - Combines Two Inputs **/
-const AudioMergeNode = ({ id, data, isConnectable }) => {
-  return (
-    <div
-      style={{
-        padding: 10,
-        border: "2px solidrgb(207, 12, 165)",
-        borderRadius: 5,
-        background: "#E6FFE6",
-        width: "150px",
-      }}
-    >
-      <Handle type="target" position="top" isConnectable={isConnectable} id="a" />
-      <Handle type="target" position="top" isConnectable={isConnectable} id="b" />
-      <Handle type="source" position="bottom" isConnectable={isConnectable} />
-      <div className="node-title">Merge Audio</div>
-      <p style={{ fontSize: "12px", color: "#555" }}>Combines two audio files</p>
-    </div>
-  );
-};
 
-// Audio Effect Node: Provides a simple dropdown to choose an effect.
+// Audio Effect Node – Provides a dropdown to choose an effect and (if needed) set a fade duration.
 const AudioEffectNode = ({ id, data, isConnectable }) => {
   return (
     <div
@@ -116,30 +212,86 @@ const AudioEffectNode = ({ id, data, isConnectable }) => {
     >
       <Handle type="target" position="top" isConnectable={isConnectable} />
       <Handle type="source" position="bottom" isConnectable={isConnectable} />
-      <div style={{ fontWeight: "bold", color: "#32CD32", marginBottom: 5 }}>
+      <div
+        style={{
+          fontWeight: "bold",
+          color: "#32CD32",
+          marginBottom: 5,
+          textAlign: "center",
+        }}
+      >
         Audio Effect
       </div>
       <div style={{ fontSize: "12px" }}>
         <label>Effect:</label>
         <select
           value={data.effect || "none"}
-          onChange={(e) => data.onChangeEffect(e.target.value)}
-          style={{ fontSize: "12px", marginLeft: 3 }}
+          onChange={(e) =>
+            data.onChangeEffect && data.onChangeEffect(e.target.value)
+          }
+          style={{ marginLeft: 3, fontSize: "12px" }}
         >
           <option value="none">None</option>
-          <option value="reverb">Reverb</option>
+          <option value="fadeIn">Fade In</option>
+          <option value="fadeOut">Fade Out</option>
           <option value="echo">Echo</option>
-          <option value="chorus">Chorus</option>
+          <option value="reverb">Reverb</option>
         </select>
+      </div>
+      {(data.effect === "fadeIn" || data.effect === "fadeOut") && (
+        <div style={{ fontSize: "12px", marginTop: 5 }}>
+          <label>Duration:</label>
+          <input
+            type="text"
+            value={data.fadeDuration || ""}
+            onChange={(e) =>
+              data.onChangeFadeDuration && data.onChangeFadeDuration(e.target.value)
+            }
+            placeholder="secs"
+            style={{ width: "70px", marginLeft: 3 }}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Audio Merge Node – Indicates that multiple audio sources should be merged.
+const AudioMergeNode = ({ id, data, isConnectable }) => {
+  return (
+    <div
+      style={{
+        padding: 10,
+        border: "2px solid #9932CC",
+        borderRadius: 5,
+        background: "#F3E5F5",
+        width: "150px",
+      }}
+    >
+      {/* Two target handles (for at least two inputs) and one source handle */}
+      <Handle type="target" position="top" isConnectable={isConnectable} id="a" />
+      <Handle type="target" position="top" isConnectable={isConnectable} id="b" />
+      <Handle type="source" position="bottom" isConnectable={isConnectable} />
+      <div
+        style={{
+          fontWeight: "bold",
+          color: "#9932CC",
+          marginBottom: 5,
+          textAlign: "center",
+        }}
+      >
+        Merge Audio
+      </div>
+      <div style={{ fontSize: "12px", textAlign: "center" }}>
+        Merges multiple audio sources
       </div>
     </div>
   );
 };
 
-// Audio Output Node: Lets user specify an output file.
+// Audio Output Node – Displays an audio player, preview button, and download link.
 const AudioOutputNode = ({ id, data, isConnectable }) => {
   const audioUrl = data.file ? URL.createObjectURL(data.file) : null;
-
   return (
     <div
       style={{
@@ -151,23 +303,47 @@ const AudioOutputNode = ({ id, data, isConnectable }) => {
       }}
     >
       <Handle type="target" position="top" isConnectable={isConnectable} />
-      <div style={{ fontWeight: "bold", color: "#DC143C", marginBottom: 5 }}>
+      <div
+        style={{
+          fontWeight: "bold",
+          color: "#DC143C",
+          marginBottom: 5,
+          textAlign: "center",
+        }}
+      >
         Audio Output
       </div>
       <input
         type="text"
         value={data.label || ""}
-        onChange={(e) => data.onChange(e.target.value)}
+        onChange={(e) => data.onChange && data.onChange(e.target.value)}
         placeholder="Output file"
         style={{ width: "100%", fontSize: "12px" }}
       />
       {audioUrl && (
         <>
           <audio controls src={audioUrl} style={{ width: "100%", marginTop: "10px" }} />
-          <button onClick={() => new Audio(audioUrl).play()} className="btn btn-secondary mt-2">
+          <button
+            onClick={() => new Audio(audioUrl).play()}
+            style={{
+              marginTop: "10px",
+              width: "100%",
+              padding: "5px",
+              fontSize: "12px",
+            }}
+          >
             Preview
           </button>
-          <a href={audioUrl} download={data.label || "output.mp3"} className="btn btn-primary mt-2">
+          <a
+            href={audioUrl}
+            download={data.label || "output.mp3"}
+            style={{
+              marginTop: "10px",
+              display: "block",
+              textAlign: "center",
+              fontSize: "12px",
+            }}
+          >
             Download
           </a>
         </>
@@ -176,18 +352,32 @@ const AudioOutputNode = ({ id, data, isConnectable }) => {
   );
 };
 
-/** Main Audio Flow Editor Component **/
+/** Main Component **/
 
 export default function AudioFlowEditor({ toggleMode }) {
-  // We start with an empty array for nodes and edges.
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const nodeIdCounter = useRef(1);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [isInteractive, setIsInteractive] = useState(true);
-  const [minimapViewport, setMinimapViewport] = useState({ x: 0, y: 0, zoom: 1 });
+  const [isProcessing, setIsProcessing] = useState(false); // Processing state
 
-  // Handlers for node and edge updates.
+  // ffmpeg state
+  const [ffmpeg, setFFmpeg] = useState(null);
+  const [ffmpegLoaded, setFFmpegLoaded] = useState(false);
+
+  // Load ffmpeg.wasm once on mount
+  useEffect(() => {
+    const loadFFmpeg = async () => {
+      const ffmpegInstance = createFFmpeg({ log: true });
+      await ffmpegInstance.load();
+      setFFmpeg(ffmpegInstance);
+      setFFmpegLoaded(true);
+    };
+    loadFFmpeg();
+  }, []);
+
+  // React Flow event handlers.
   const onNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
     []
@@ -197,12 +387,24 @@ export default function AudioFlowEditor({ toggleMode }) {
     []
   );
   const onConnect = useCallback(
-    (connection) => setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
+    (connection) =>
+      setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
     []
   );
+
+  // Context menu handlers for deletion of nodes and edges.
+  const onNodeContextMenu = (event, node) => {
+    event.preventDefault();
+    if (window.confirm(`Delete node ${node.id}?`)) {
+      setNodes((nds) => nds.filter((n) => n.id !== node.id));
+    }
+  };
+
   const onEdgeContextMenu = (event, edge) => {
     event.preventDefault();
-    setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+    if (window.confirm(`Delete edge ${edge.id}?`)) {
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+    }
   };
 
   // Helper to update a node’s data.
@@ -214,21 +416,38 @@ export default function AudioFlowEditor({ toggleMode }) {
     );
   };
 
+  // Helper to convert "HH:MM:SS" to seconds.
+  const timeStrToSeconds = (timeStr) => {
+    const parts = timeStr.split(":").map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
+  };
+
   // Function to add a new node of a specified type.
   const addNode = (type) => {
     const id = String(nodeIdCounter.current++);
     const newNode = {
       id,
-      type, // Must match one of the keys in our nodeTypes map
+      type, // Must match one of the keys in our nodeTypes map.
       position: { x: Math.random() * 300 + 50, y: Math.random() * 300 + 50 },
       data: {},
     };
 
-    // Initialize default data and change handlers per node type.
     if (type === "audioInput") {
       newNode.data = {
         label: "Input File",
         onFileChange: (file) => updateNodeData(id, { file }),
+      };
+    } else if (type === "audioRecord") {
+      newNode.data = {
+        label: "Record Audio",
+        onRecord: (file) => updateNodeData(id, { file }),
+      };
+    } else if (type === "audioMerge") {
+      newNode.data = {
+        label: "Merge Audio",
       };
     } else if (type === "audioTrim") {
       newNode.data = {
@@ -240,7 +459,10 @@ export default function AudioFlowEditor({ toggleMode }) {
     } else if (type === "audioEffect") {
       newNode.data = {
         effect: "none",
+        fadeDuration: "5",
         onChangeEffect: (value) => updateNodeData(id, { effect: value }),
+        onChangeFadeDuration: (value) =>
+          updateNodeData(id, { fadeDuration: value }),
       };
     } else if (type === "audioOutput") {
       newNode.data = {
@@ -249,48 +471,161 @@ export default function AudioFlowEditor({ toggleMode }) {
         file: null,
       };
     }
-
     setNodes((nds) => [...nds, newNode]);
   };
 
-  // Handle recording audio
-  const handleRecord = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mediaRecorder = new MediaRecorder(stream);
-    const chunks = [];
+  // ffmpeg processing function – processes merging, trimming, and effects.
+  const processWorkflow = async () => {
+    if (!ffmpegLoaded) {
+      alert("FFmpeg is not loaded yet!");
+      return;
+    }
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) chunks.push(event.data);
-    };
+    setIsProcessing(true); // Disable process button while processing
 
-    mediaRecorder.onstop = () => {
-      const newAudioBlob = new Blob(chunks, { type: "audio/webm" });
-      const id = String(nodeIdCounter.current++);
-      const newNode = {
-        id,
-        type: "audioInput",
-        position: { x: Math.random() * 300 + 50, y: Math.random() * 300 + 50 },
-        data: { file: newAudioBlob },
-      };
-      setNodes((nds) => [...nds, newNode]);
-    };
+    // Gather nodes:
+    const mergeNode = nodes.find((node) => node.type === "audioMerge");
+    const trimNode = nodes.find((node) => node.type === "audioTrim");
+    const effectNode = nodes.find((node) => node.type === "audioEffect");
+    const outputNode = nodes.find((node) => node.type === "audioOutput");
 
-    mediaRecorder.start();
-    setTimeout(() => mediaRecorder.stop(), 5000); // Record for 5 seconds
+    if (!outputNode) {
+      alert("Make sure you have an Audio Output node.");
+      setIsProcessing(false);
+      return;
+    }
+
+    let currentFile = null;
+
+    try {
+      // If a merge node exists, merge all available audio sources.
+      if (mergeNode) {
+        // Gather all audioInput and audioRecord nodes that have a file.
+        const mergingSources = nodes.filter(
+          (node) =>
+            (node.type === "audioInput" || node.type === "audioRecord") &&
+            node.data.file
+        );
+        if (mergingSources.length < 2) {
+          alert("Merging requires at least two audio sources.");
+          setIsProcessing(false);
+          return;
+        }
+        // Write each file to ffmpeg's FS.
+        for (let i = 0; i < mergingSources.length; i++) {
+          await ffmpeg.FS(
+            "writeFile",
+            `input${i}.mp3`,
+            await fetchFile(mergingSources[i].data.file)
+          );
+        }
+        // Build input arguments.
+        const inputArgs = [];
+        for (let i = 0; i < mergingSources.length; i++) {
+          inputArgs.push("-i", `input${i}.mp3`);
+        }
+        const filter = `amix=inputs=${mergingSources.length}:duration=longest`;
+        await ffmpeg.run(...inputArgs, "-filter_complex", filter, "merged.mp3");
+        const mergedData = ffmpeg.FS("readFile", "merged.mp3");
+        currentFile = new Blob([mergedData.buffer], { type: "audio/mp3" });
+        // Cleanup merging files.
+        for (let i = 0; i < mergingSources.length; i++) {
+          ffmpeg.FS("unlink", `input${i}.mp3`);
+        }
+        ffmpeg.FS("unlink", "merged.mp3");
+      } else {
+        // If no merge node, try to get a single source (prefer an audioInput, then an audioRecord).
+        const inputNode = nodes.find(
+          (node) => node.type === "audioInput" && node.data.file
+        );
+        const recordNodes = nodes.filter(
+          (node) => node.type === "audioRecord" && node.data.file
+        );
+        if (inputNode) {
+          currentFile = inputNode.data.file;
+        } else if (recordNodes.length > 0) {
+          currentFile = recordNodes[0].data.file;
+        } else {
+          alert("No audio source found.");
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // If a trim node exists, apply trimming.
+      if (trimNode) {
+        const startSec = timeStrToSeconds(trimNode.data.start);
+        const duration = trimNode.data.duration;
+        await ffmpeg.FS("writeFile", "temp.mp3", await fetchFile(currentFile));
+        await ffmpeg.run(
+          "-i",
+          "temp.mp3",
+          "-ss",
+          String(startSec),
+          "-t",
+          String(duration),
+          "-c",
+          "copy",
+          "trimmed.mp3"
+        );
+        const trimmedData = ffmpeg.FS("readFile", "trimmed.mp3");
+        currentFile = new Blob([trimmedData.buffer], { type: "audio/mp3" });
+        ffmpeg.FS("unlink", "temp.mp3");
+        ffmpeg.FS("unlink", "trimmed.mp3");
+      }
+
+      // If an effect node exists, apply the chosen effect.
+      if (effectNode) {
+        let filterStr = "";
+        if (effectNode.data.effect === "fadeIn") {
+          filterStr = `afade=t=in:st=0:d=${effectNode.data.fadeDuration}`;
+        } else if (effectNode.data.effect === "fadeOut") {
+          if (trimNode) {
+            const trimDuration = Number(trimNode.data.duration);
+            const fadeDuration = Number(effectNode.data.fadeDuration);
+            filterStr = `afade=t=out:st=${trimDuration - fadeDuration}:d=${fadeDuration}`;
+          } else {
+            alert("Fade out effect requires a trim node to compute audio duration.");
+            setIsProcessing(false);
+            return;
+          }
+        } else if (effectNode.data.effect === "echo") {
+          filterStr = `aecho=0.8:0.88:60:0.4`;
+        } else if (effectNode.data.effect === "reverb") {
+          filterStr = `aecho=0.7:0.9:1000:0.3`;
+        }
+        if (filterStr) {
+          await ffmpeg.FS("writeFile", "temp.mp3", await fetchFile(currentFile));
+          await ffmpeg.run("-i", "temp.mp3", "-af", filterStr, "effect.mp3");
+          const effectData = ffmpeg.FS("readFile", "effect.mp3");
+          currentFile = new Blob([effectData.buffer], { type: "audio/mp3" });
+          ffmpeg.FS("unlink", "temp.mp3");
+          ffmpeg.FS("unlink", "effect.mp3");
+        }
+      }
+
+      // Update the output node with the final processed file.
+      updateNodeData(outputNode.id, { file: currentFile });
+    } catch (error) {
+      console.error("Error processing audio with ffmpeg:", error);
+      alert("Audio processing failed. Check console for details.");
+    } finally {
+      setIsProcessing(false); // Re-enable the process button
+    }
   };
-  
 
-  // Zoom and fit view controls
+  // Zoom and view controls.
   const zoomIn = () => reactFlowInstance?.zoomIn();
   const zoomOut = () => reactFlowInstance?.zoomOut();
   const fitView = () => reactFlowInstance?.fitView();
-  const toggleInteractive = () => setIsInteractive(true);
+  const toggleInteractive = () => setIsInteractive((prev) => !prev);
 
-  // Map node types to our custom node components.
+  // Map node types to custom components.
   const nodeTypes = {
     audioInput: AudioInputNode,
-    audioTrim: AudioTrimNode,
+    audioRecord: AudioRecordNode,
     audioMerge: AudioMergeNode,
+    audioTrim: AudioTrimNode,
     audioEffect: AudioEffectNode,
     audioOutput: AudioOutputNode,
   };
@@ -327,6 +662,7 @@ export default function AudioFlowEditor({ toggleMode }) {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeContextMenu={onNodeContextMenu}
           onEdgeContextMenu={onEdgeContextMenu}
           onInit={setReactFlowInstance}
           fitView
@@ -340,7 +676,6 @@ export default function AudioFlowEditor({ toggleMode }) {
               top: "350px",
               right: "10px",
             }}
-            viewportPosition={minimapViewport}
           />
           <Background variant="dots" gap={12} size={1} />
         </ReactFlow>
@@ -361,10 +696,16 @@ export default function AudioFlowEditor({ toggleMode }) {
           </button>
         </div>
 
-        {/* Bottom Center Controls: Buttons to add nodes and export workflow */}
+        {/* Bottom Center Controls: Buttons to add nodes */}
         <div style={buttonContainerStyle}>
           <button onClick={() => addNode("audioInput")} style={customButtonStyle}>
             <Plus size={18} /> Add Input
+          </button>
+          <button onClick={() => addNode("audioRecord")} style={customButtonStyle}>
+            <Plus size={18} /> Add Record
+          </button>
+          <button onClick={() => addNode("audioMerge")} style={customButtonStyle}>
+            <Plus size={18} /> Add Merge
           </button>
           <button onClick={() => addNode("audioTrim")} style={customButtonStyle}>
             <Plus size={18} /> Add Trim
@@ -375,16 +716,33 @@ export default function AudioFlowEditor({ toggleMode }) {
           <button onClick={() => addNode("audioOutput")} style={customButtonStyle}>
             <Plus size={18} /> Add Output
           </button>
-          {/* <button onClick={exportWorkflow} style={customButtonStyle}>
-            <Download size={18} /> Export
-          </button> */}
         </div>
+
+        {/* Process Workflow Button */}
+        <button
+          onClick={processWorkflow}
+          disabled={isProcessing}
+          style={{
+            position: "absolute",
+            bottom: 80,
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "10px 20px",
+            backgroundColor: isProcessing ? "#6c757d" : "#28a745",
+            color: "white",
+            border: "none",
+            borderRadius: "5px",
+            cursor: isProcessing ? "not-allowed" : "pointer",
+          }}
+        >
+          {isProcessing ? "Processing..." : "Process Audio"}
+        </button>
       </div>
     </div>
   );
 }
 
-/** Styles for controls and buttons **/
+/** Styles for Controls and Buttons **/
 const controlsContainerStyle = {
   position: "absolute",
   left: 15,
@@ -401,6 +759,7 @@ const buttonContainerStyle = {
   left: "50%",
   transform: "translateX(-50%)",
   display: "flex",
+  flexWrap: "wrap",
   gap: "10px",
   padding: "10px",
 };
