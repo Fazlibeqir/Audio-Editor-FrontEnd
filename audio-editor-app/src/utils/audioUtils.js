@@ -1,4 +1,3 @@
-// src/utils/audioUtils.js
 export const encodeWav = async (audioBuffer) => {
     const numChannels = audioBuffer.numberOfChannels;
     const sampleRate = audioBuffer.sampleRate;

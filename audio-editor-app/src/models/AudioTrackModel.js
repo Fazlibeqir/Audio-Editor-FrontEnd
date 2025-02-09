@@ -1,4 +1,3 @@
-// src/models/AudioTrackModel.js
 export default class AudioTrackModel {
     constructor({ id, blob, type, ref = null }) {
       this.id = id;

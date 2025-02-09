@@ -1,4 +1,3 @@
-// src/components/AudioRecorder/AudioTrack.jsx
 import React, { useEffect, useRef, useImperativeHandle } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.js";
@@ -8,11 +7,9 @@ const AudioTrack = React.forwardRef(
     const containerRef = useRef(null);
     const waveSurferRef = useRef(null);
     const regionsPluginRef = useRef(null);
-    // Holds the current region boundaries for trimming.
-    const trimRegionRef = useRef(null);
+    const trimRegionRef = useRef(null); // Holds the current region boundaries for trimming.
 
     useEffect(() => {
-      // Create Regions plugin instance with drag/resize enabled.
       regionsPluginRef.current = RegionsPlugin.create({
         drag: true,
         resize: true,

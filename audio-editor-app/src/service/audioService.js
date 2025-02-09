@@ -1,8 +1,5 @@
-// src/services/audioService.js
 import axiosInstance from './axiosInstance';
 
-//TODO: Write the requset to backend
-//Examples
 const audioService = {
   uploadTrack: async (file) => {
     
@@ -21,7 +18,7 @@ mergeTracks: async (blobs) => {
       blob instanceof File 
       ? blob
       : new File([blob],`track_${index}.webm`, { type: blob.type || 'audio/webm' });
-      formData.append('files', convertedFile); // Use 'files' as the part name
+      formData.append('files', convertedFile);
     });
 
     try {
@@ -33,16 +30,6 @@ mergeTracks: async (blobs) => {
       return response;
     } catch (error) {
       console.error('Error merging tracks:', error);
-      throw error;
-    }
-  },
-
-  fetchTracks: async () => {
-    try {
-      const response = await axiosInstance.get('/tracks');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching tracks:', error);
       throw error;
     }
   },

@@ -1,4 +1,3 @@
-// src/components/AudioRecorder/TrackControls.jsx
 import React from 'react';
 
 const TrackControls = ({ trackRef, volume, setVolume, playbackRate, setPlaybackRate }) => {

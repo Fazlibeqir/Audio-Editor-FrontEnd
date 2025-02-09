@@ -17,7 +17,6 @@ const AudioRecorder = ({ toggleMode }) => {
   const fileInputRef = useRef(null);
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [downloadUrl, setDownloadUrl] = useState(null);
 
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -123,7 +122,6 @@ const AudioRecorder = ({ toggleMode }) => {
         tracks.find(t => t.id === selectedTrackId) || tracks[tracks.length - 1];
       try {
         const response = await audioService.uploadTrack({ file: trackToExport.blob });
-        setDownloadUrl(response.data);
         const a = document.createElement("a");
         a.href = response.data;
         document.body.appendChild(a);
@@ -140,7 +138,6 @@ const AudioRecorder = ({ toggleMode }) => {
       try {
         const blobs = tracks.map(track => track.blob);
         const response = await audioService.mergeTracks(blobs);
-        setDownloadUrl(response.data);
         const a = document.createElement("a");
         a.href = response.data;
         document.body.appendChild(a);
