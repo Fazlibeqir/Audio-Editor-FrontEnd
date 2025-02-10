@@ -310,7 +310,8 @@ const AudioRecorder = ({ toggleMode }) => {
           {tracks.length === 0 ? (
             <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
               <p className="text-center  lead bg-black text-white">
-                Import an audio file or use the voice recorder to start editing
+              Import an audio file or record your voice to begin editing.<br/>
+              Alternatively, switch to node-based editing mode.
               </p>
             </div>
           ) : (
