@@ -307,18 +307,27 @@ const AudioRecorder = ({ toggleMode }) => {
           </button>
         </div>
         <div className="flex-grow-1 overflow-auto" style={{ display: "flex", flexDirection: "column" }}>
-          {tracks.map(track => (
-            <AudioTrack
-              key={track.id}
-              ref={track.ref}
-              blob={track.blob}
-              playbackRate={playbackRate}
-              volume={volume}
-              isSelected={track.id === selectedTrackId}
-              onClick={() => setSelectedTrackId(track.id)}
-              onDelete={() => handleDeleteTrack(track.id)}
-            />
-          ))}
+          {tracks.length === 0 ? (
+            <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
+              <p className="text-center  lead bg-black text-white">
+                Import an audio file or use the voice recorder to start editing
+              </p>
+            </div>
+          ) : (
+            tracks.map(track => (
+              <AudioTrack
+                key={track.id}
+                ref={track.ref}
+                blob={track.blob}
+                playbackRate={playbackRate}
+                volume={volume}
+                isSelected={track.id === selectedTrackId}
+                onClick={() => setSelectedTrackId(track.id)}
+                onDelete={() => handleDeleteTrack(track.id)}
+              />
+            ))
+          )}
+
         </div>
       </div>
     </div>
