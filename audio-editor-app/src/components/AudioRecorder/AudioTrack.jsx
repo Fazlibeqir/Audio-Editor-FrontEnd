@@ -116,10 +116,10 @@ const AudioTrack = React.forwardRef(
             justifyContent: "center",
           }}
         >
-          <button style={{ marginBottom: "5px" }} onClick={onClick}>
+          <button style={{ marginBottom: "5px" }} onClick={onClick} className="btn btn-success">
             Select Track
           </button>
-          <button onClick={onDelete}>Delete Track</button>
+          <button className="btn btn-danger" onClick={onDelete}>Delete Track</button>
         </div>
         {/* WaveSurfer container */}
         <div ref={containerRef} style={{ flex: 1 }} />

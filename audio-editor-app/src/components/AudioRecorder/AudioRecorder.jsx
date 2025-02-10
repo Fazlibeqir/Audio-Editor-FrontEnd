@@ -237,7 +237,7 @@ const AudioRecorder = ({ toggleMode }) => {
     }
   };
 
-   // DELETE TRACK LOGIC:
+  // DELETE TRACK LOGIC:
   // This function stops the track's playback if needed and removes the track from the state.
   const handleDeleteTrack = (trackId) => {
     const trackToDelete = tracks.find(t => t.id === trackId);
@@ -284,8 +284,20 @@ const AudioRecorder = ({ toggleMode }) => {
           className="d-flex flex-column align-items-center justify-content-center p-3 bg-dark vh-100"
           style={{ width: "80px", gap: "1.5rem" }}
         >
-          <button className="btn btn-secondary" onClick={handleRecord}>
-            {isRecording ? "Stop" : "Record"}
+          <button
+            type="button"
+            className={`btn ${isRecording ? 'btn-danger' : 'btn-primary'} rounded-circle`}
+            style={{
+              width: '60px',
+              height: '60px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.9rem'
+            }}
+            onClick={handleRecord}
+          >
+            {isRecording ? 'Stop' : 'Rec'}
           </button>
           <button className="btn btn-warning" onClick={handleTrim}>
             ✂
