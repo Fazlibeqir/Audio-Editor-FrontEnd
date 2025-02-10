@@ -237,6 +237,20 @@ const AudioRecorder = ({ toggleMode }) => {
     }
   };
 
+   // DELETE TRACK LOGIC:
+  // This function stops the track's playback if needed and removes the track from the state.
+  const handleDeleteTrack = (trackId) => {
+    const trackToDelete = tracks.find(t => t.id === trackId);
+    if (trackToDelete && trackToDelete.ref && trackToDelete.ref.current) {
+      // Stop the track's playback before deleting it.
+      trackToDelete.ref.current.stop();
+    }
+    setTracks(prevTracks => prevTracks.filter(t => t.id !== trackId));
+    if (selectedTrackId === trackId) {
+      setSelectedTrackId(null);
+    }
+  };
+
   return (
     <div className="d-flex flex-column vh-100 bg-black text-white">
       <TopNavigation
@@ -290,6 +304,7 @@ const AudioRecorder = ({ toggleMode }) => {
               volume={volume}
               isSelected={track.id === selectedTrackId}
               onClick={() => setSelectedTrackId(track.id)}
+              onDelete={() => handleDeleteTrack(track.id)}
             />
           ))}
         </div>

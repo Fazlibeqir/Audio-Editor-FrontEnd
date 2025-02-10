@@ -3,7 +3,7 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.js";
 
 const AudioTrack = React.forwardRef(
-  ({ blob, playbackRate, volume, isSelected, onClick }, ref) => {
+  ({ blob, playbackRate, volume, isSelected, onClick, onDelete }, ref) => {
     const containerRef = useRef(null);
     const waveSurferRef = useRef(null);
     const regionsPluginRef = useRef(null);
@@ -97,18 +97,32 @@ const AudioTrack = React.forwardRef(
 
     return (
       <div
-        onClick={onClick}
         style={{
+          display: "flex",
           border: isSelected ? "3px solid red" : "1px solid gray",
           padding: "5px",
           marginBottom: "10px",
-          cursor: "pointer",
           width: "90%",
           marginLeft: "auto",
           marginRight: "auto",
         }}
       >
-        <div ref={containerRef} />
+        {/* Left-side button panel */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            marginRight: "10px",
+            justifyContent: "center",
+          }}
+        >
+          <button style={{ marginBottom: "5px" }} onClick={onClick}>
+            Select Track
+          </button>
+          <button onClick={onDelete}>Delete Track</button>
+        </div>
+        {/* WaveSurfer container */}
+        <div ref={containerRef} style={{ flex: 1 }} />
       </div>
     );
   }
