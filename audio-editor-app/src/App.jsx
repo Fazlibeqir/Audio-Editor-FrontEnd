@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import AudioRecorder from './components/AudioRecorder/AudioRecorder';
+import AudioEditor from './components/AudioRecorder/AudioEditor';
 import FlowEditor from './components/AudioNodes/FlowEditor';
 
 function App() {
@@ -15,7 +15,7 @@ function App() {
   return (
     <div className="bg-dark">
       {mode === 'audio' ? (
-        <AudioRecorder toggleMode={toggleMode} />
+        <AudioEditor toggleMode={toggleMode} />
       ) : (
         <FlowEditor toggleMode={toggleMode} />
       )}

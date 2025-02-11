@@ -5,16 +5,15 @@ import TopNavigation from './TopNavigation';
 import FileInput from './FileInput';
 import audioService from '../../service/audioService';
 import AudioTrackModel from '../../models/AudioTrackModel';
-import { trimAudio, applyFadeIn, applyFadeOut } from '../../utils/audioEffects';
+import { applyFadeIn, applyFadeOut } from '../../utils/audioEffects';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import AudioControls from './CustomButtons/AudioControls';
+import ExportButton from './CustomButtons/ExportButton';
 
-//TODO: Refactorize on more files components
 
-const AudioRecorder = ({ toggleMode }) => {
+const AudioEditor = ({ toggleMode }) => {
   const [tracks, setTracks] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
   const [volume, setVolume] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
   const audioContextRef = useRef(null);
@@ -70,36 +69,16 @@ const AudioRecorder = ({ toggleMode }) => {
     });
   };
 
-  // Recording logic.
-  const handleRecord = async () => {
-    if (!isRecording) {
-      await audioContextRef.current.resume();
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        setMediaRecorder(recorder);
-        const chunks = [];
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) chunks.push(event.data);
-        };
-        recorder.onstop = () => {
-          const newAudioBlob = new Blob(chunks, { type: "audio/webm" });
-          addOrUpdateTrack(newAudioBlob, "record");
-          // Optionally, you could upload here:
-          // audioService.uploadTrack({ file: newAudioBlob });
-        };
-        recorder.start();
-        setIsRecording(true);
-      } catch (error) {
-        console.error("Error accessing microphone:", error);
-      }
-    } else {
-      if (mediaRecorder) {
-        mediaRecorder.stop();
-        setIsRecording(false);
-      }
-    }
+  // A helper function to update an existing track (for example, after trimming).
+  const updateTrack = (id, newBlob) => {
+    setTracks(prevTracks =>
+      prevTracks.map(t =>
+        t.id === id ? new AudioTrackModel({ ...t, blob: newBlob }) : t
+      )
+    );
   };
+
+  const selectedTrack = tracks.find(t => t.id === selectedTrackId);
 
   // Import logic.
   const handleImportClick = () => {
@@ -115,24 +94,6 @@ const AudioRecorder = ({ toggleMode }) => {
         const importedBlob = new Blob([reader.result], { type: file.type });
         addOrUpdateTrack(importedBlob, "import");
       };
-    }
-  };
-
-  // Export logic.
-  const handleExport = async () => {
-    if (tracks.length > 0) {
-      const trackToExport =
-        tracks.find(t => t.id === selectedTrackId) || tracks[tracks.length - 1];
-      try {
-        const response = await audioService.uploadTrack({ file: trackToExport.blob });
-        const a = document.createElement("a");
-        a.href = response.data;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error("Error exporting track:", error);
-      }
     }
   };
 
@@ -152,35 +113,6 @@ const AudioRecorder = ({ toggleMode }) => {
       }
     } else {
       alert("No tracks available to merge.");
-    }
-  };
-
-  // Trim logic using the extracted utility.
-  const handleTrim = async () => {
-    if (tracks.length === 0) return;
-    if (!selectedTrackId) {
-      alert("Select a track to trim.");
-      return;
-    }
-    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
-    if (!selectedTrack || !selectedTrack.ref || !selectedTrack.ref.current) {
-      alert("No track available for trimming.");
-      return;
-    }
-    const region = selectedTrack.ref.current.getTrimRegion();
-    if (!region) {
-      alert("No trim region set.");
-      return;
-    }
-    try {
-      const trimmedBlob = await trimAudio(selectedTrack.blob, region, audioContextRef.current);
-      setTracks(prevTracks =>
-        prevTracks.map(t =>
-          t.id === selectedTrack.id ? new AudioTrackModel({ ...t, blob: trimmedBlob }) : t
-        )
-      );
-    } catch (error) {
-      console.error("Error trimming track:", error);
     }
   };
 
@@ -238,11 +170,9 @@ const AudioRecorder = ({ toggleMode }) => {
   };
 
   // DELETE TRACK LOGIC:
-  // This function stops the track's playback if needed and removes the track from the state.
   const handleDeleteTrack = (trackId) => {
     const trackToDelete = tracks.find(t => t.id === trackId);
     if (trackToDelete && trackToDelete.ref && trackToDelete.ref.current) {
-      // Stop the track's playback before deleting it.
       trackToDelete.ref.current.stop();
     }
     setTracks(prevTracks => prevTracks.filter(t => t.id !== trackId));
@@ -256,7 +186,7 @@ const AudioRecorder = ({ toggleMode }) => {
       <TopNavigation
         toggleMode={toggleMode}
         handleImportClick={handleImportClick}
-        handleExport={handleExport}
+        handleExport={ExportButton.handleExport}
         handleMergeTracks={handleMergeTracks}
         handleFadeIn={handleFadeIn}
         handleFadeOut={handleFadeOut}
@@ -280,38 +210,19 @@ const AudioRecorder = ({ toggleMode }) => {
       </div>
 
       <div className="d-flex flex-grow-1 bg-black">
-        <div
-          className="d-flex flex-column align-items-center justify-content-center p-3 bg-dark vh-100"
-          style={{ width: "80px", gap: "1.5rem" }}
-        >
-          <button
-            type="button"
-            className={`btn ${isRecording ? 'btn-danger' : 'btn-primary'} rounded-circle`}
-            style={{
-              width: '60px',
-              height: '60px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.9rem'
-            }}
-            onClick={handleRecord}
-          >
-            {isRecording ? 'Stop' : 'Rec'}
-          </button>
-          <button className="btn btn-warning" onClick={handleTrim}>
-            ✂
-          </button>
-          <button className="btn btn-success" onClick={handleExport}>
-            💾
-          </button>
-        </div>
+        <AudioControls
+          audioContext={audioContextRef}
+          addOrUpdateTrack={addOrUpdateTrack}
+          selectedTrack={selectedTrack}
+          updateTrack={updateTrack}
+        />
+
         <div className="flex-grow-1 overflow-auto" style={{ display: "flex", flexDirection: "column" }}>
           {tracks.length === 0 ? (
             <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
               <p className="text-center  lead bg-black text-white">
-              Import an audio file or record your voice to begin editing.<br/>
-              Alternatively, switch to node-based editing mode.
+                Import an audio file or record your voice to begin editing.<br />
+                Alternatively, switch to node-based editing mode.
               </p>
             </div>
           ) : (
@@ -335,4 +246,4 @@ const AudioRecorder = ({ toggleMode }) => {
   );
 };
 
-export default AudioRecorder;
+export default AudioEditor;
