@@ -27,7 +27,7 @@ export async function processWorkflow({ nodes, ffmpeg, ffmpegLoaded, timeStrToSe
     if (mergingSources.length < 2) {
       throw new Error("Merging requires at least two audio sources.");
     }
-    // Write each file to ffmpeg's FS.
+    
     for (let i = 0; i < mergingSources.length; i++) {
       await ffmpeg.FS(
         "writeFile",
@@ -35,19 +35,33 @@ export async function processWorkflow({ nodes, ffmpeg, ffmpegLoaded, timeStrToSe
         await fetchFile(mergingSources[i].data.file)
       );
     }
-    // Build input arguments.
-    const inputArgs = [];
+    
+    // Create a file list for the concat demuxer.
+    // Each line should be of the form: file 'inputX.mp3'
+    let fileListContent = "";
     for (let i = 0; i < mergingSources.length; i++) {
-      inputArgs.push("-i", `input${i}.mp3`);
+      fileListContent += `file 'input${i}.mp3'\n`;
     }
-    const filter = `amix=inputs=${mergingSources.length}:duration=longest`;
-    await ffmpeg.run(...inputArgs, "-filter_complex", filter, "merged.mp3");
+    await ffmpeg.FS("writeFile", "fileList.txt", fileListContent);
+    
+    // Run ffmpeg with the concat demuxer to merge the audio files.
+    await ffmpeg.run(
+      "-f", "concat",
+      "-safe", "0",
+      "-i", "fileList.txt",
+      "-c", "copy",
+      "merged.mp3"
+    );
+    
+    // Read the merged file from ffmpeg's FS and create a Blob.
     const mergedData = ffmpeg.FS("readFile", "merged.mp3");
     currentFile = new Blob([mergedData.buffer], { type: "audio/mp3" });
-    // Cleanup merging files.
+    
+    // Clean up temporary files from the FS.
     for (let i = 0; i < mergingSources.length; i++) {
       ffmpeg.FS("unlink", `input${i}.mp3`);
     }
+    ffmpeg.FS("unlink", "fileList.txt");
     ffmpeg.FS("unlink", "merged.mp3");
   } else {
     // If no merge node, try to get a single source.
