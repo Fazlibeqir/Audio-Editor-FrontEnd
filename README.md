@@ -10,6 +10,8 @@ It communicates with the BackEnd service (built with Java Spring Boot) to proces
 - **Processing audio:**  FFmpeg
 - **Seamless Integration:** Communicates with the Spring Boot backend for audio processing.
 
+## This is the [WIKI page](https://github.com/Fazlibeqir/Audio-Editor-FrontEnd/wiki) 
+
 ## Team
 
 - **Andi Zahiri** - 191560
